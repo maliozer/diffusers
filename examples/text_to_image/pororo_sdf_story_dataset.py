@@ -2,6 +2,7 @@ import datasets
 import os
 from PIL import Image
 import csv
+from ast import literal_eval
 
 class CustomImageCaptioningDataset(datasets.GeneratorBasedBuilder):
     def __init__(self, csv_file='/content/output.csv', image_folder='/content/pororo_diff_finetune_dataset2', **kwargs):
@@ -16,7 +17,7 @@ class CustomImageCaptioningDataset(datasets.GeneratorBasedBuilder):
                 {
                     "image": datasets.Image(),
                     "caption": datasets.Value("string"),
-                    "prev_text": datasets.Value("string"),
+                    "prev_text": datasets.Value("list"),
                 }
             ),
             supervised_keys=("image", "caption"),
@@ -29,7 +30,7 @@ class CustomImageCaptioningDataset(datasets.GeneratorBasedBuilder):
             # Load the CSV file containing (filename, text) pairs
             with open(self.csv_file, "r") as csv_file:
                 reader = csv.DictReader(csv_file)
-                caption_data = [(row["file_name"], row["text"], row["prev_text"]) for row in reader]
+                caption_data = [(row["file_name"], row["text"], literal_eval(row["prev_text"])) for row in reader]
 
             # Create a single split for the entire dataset
             return [
