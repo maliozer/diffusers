@@ -373,8 +373,8 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
             self.class_embedding = nn.Linear(projection_class_embeddings_input_dim, time_embed_dim)
         else:
             self.class_embedding = None
-
-        if addition_embed_type == "text":
+        self.addition_embed_type = "story"
+        if self.addition_embed_type in ["text", "story"]:
             if encoder_hid_dim is not None:
                 text_time_embedding_from_dim = encoder_hid_dim
             else:
@@ -989,6 +989,10 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
 
         if self.config.addition_embed_type == "text":
             aug_emb = self.add_embedding(encoder_hidden_states)
+        elif self.config.addition_embed_type == "story" or self.addition_embed_type == "story":
+            text_emb = self.add_embedding(encoder_hidden_states)
+            story_emb = self.add_embedding(added_cond_kwargs.get("prev_embeds"))
+            aug_emb = text_emb + story_emb
         elif self.config.addition_embed_type == "text_image":
             # Kandinsky 2.1 - style
             if "image_embeds" not in added_cond_kwargs:
@@ -1108,7 +1112,6 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
                 additional_residuals = {}
                 if is_adapter and len(down_intrablock_additional_residuals) > 0:
                     additional_residuals["additional_residuals"] = down_intrablock_additional_residuals.pop(0)
-
                 sample, res_samples = downsample_block(
                     hidden_states=sample,
                     temb=emb,

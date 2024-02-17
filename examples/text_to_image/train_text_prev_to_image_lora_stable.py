@@ -593,21 +593,13 @@ def main():
         return inputs.input_ids
     
     def tokenize_prev_text(examples, is_train=True):
-        prev_texts = []
-        for text in examples["prev_text"]:
-            if isinstance(text, str):
-                prev_texts.append(text)
-            elif isinstance(text, (list, np.ndarray)):
-                # take a random caption if there are multiple
-                prev_texts.append(random.choice(text) if is_train else text[0])
-            else:
-                raise ValueError(
-                    f"Caption column `{caption_column}` should contain either strings or lists of strings."
-                )
-        inputs = tokenizer(
-            prev_texts, max_length=tokenizer.model_max_length, padding="max_length", truncation=True, return_tensors="pt"
-        )
-        return inputs.input_ids
+        prev_column = "prev_text"
+        tokenized_texts = []
+        prev_texts = examples[prev_column]  # This should be a list of texts
+        for prev_text in prev_texts:
+            tokens = tokenizer(prev_text, max_length=tokenizer.model_max_length, padding="max_length", truncation=True, return_tensors="pt").input_ids
+            tokenized_texts.append(tokens)
+        return tokenized_texts
 
     # Preprocessing the datasets.
     train_transforms = transforms.Compose(
@@ -756,6 +748,8 @@ def main():
 
                 # Get the text embedding for conditioning
                 encoder_hidden_states = text_encoder(batch["input_ids"])[0]
+                prev_enc_hidden_states = text_encoder(batch["prev_ids"])[0]
+                breakpoint()
 
                 # Get the target for loss depending on the prediction type
                 if args.prediction_type is not None:
@@ -770,7 +764,7 @@ def main():
                     raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
 
                 # Predict the noise residual and compute loss
-                model_pred = unet(noisy_latents, timesteps, encoder_hidden_states).sample
+                model_pred = unet(noisy_latents, timesteps, encoder_hidden_states, added_cond_kwargs={"prev_embeds": prev_enc_hidden_states}).sample
 
                 if args.snr_gamma is None:
                     loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
