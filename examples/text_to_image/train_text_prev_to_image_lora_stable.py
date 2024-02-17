@@ -14,6 +14,19 @@
 # limitations under the License.
 """Fine-tuning script for Stable Diffusion for text2image with support for LoRA."""
 
+from diffusers.models.embeddings import (
+    GaussianFourierProjection,
+    ImageHintTimeEmbedding,
+    ImageProjection,
+    ImageTimeEmbedding,
+    PositionNet,
+    TextImageProjection,
+    TextImageTimeEmbedding,
+    TextTimeEmbedding,
+    TimestepEmbedding,
+    Timesteps,
+)
+
 import pdb
 import argparse
 import logging
@@ -719,7 +732,13 @@ def main():
         # Only show the progress bar once on each machine.
         disable=not accelerator.is_local_main_process,
     )
-  
+
+    for name, param in unet.named_parameters():
+        if "lora" in name:  # Use the actual naming convention used in your model
+            param.requires_grad = True
+        else:
+            param.requires_grad = False  # Ensure only LoRA weights are trainable
+
     for epoch in range(first_epoch, args.num_train_epochs):
         unet.train()
         train_loss = 0.0
@@ -749,7 +768,10 @@ def main():
                 # Get the text embedding for conditioning
                 encoder_hidden_states = text_encoder(batch["input_ids"])[0]
                 prev_enc_hidden_states = text_encoder(batch["prev_ids"])[0]
-                breakpoint()
+
+                print("-------------------------------------------------------")
+                print(encoder_hidden_states.shape, prev_enc_hidden_states.shape)
+
 
                 # Get the target for loss depending on the prediction type
                 if args.prediction_type is not None:
@@ -763,11 +785,16 @@ def main():
                 else:
                     raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
 
+                print(encoder_hidden_states)
+                print(prev_enc_hidden_states)
+
                 # Predict the noise residual and compute loss
                 model_pred = unet(noisy_latents, timesteps, encoder_hidden_states, added_cond_kwargs={"prev_embeds": prev_enc_hidden_states}).sample
+                
 
                 if args.snr_gamma is None:
                     loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
+                    print("LOSS :", loss)
                 else:
                     # Compute loss-weights as per Section 3.4 of https://arxiv.org/abs/2303.09556.
                     # Since we predict the noise instead of x_0, the original formulation is slightly changed.
@@ -783,6 +810,11 @@ def main():
                     loss = F.mse_loss(model_pred.float(), target.float(), reduction="none")
                     loss = loss.mean(dim=list(range(1, len(loss.shape)))) * mse_loss_weights
                     loss = loss.mean()
+                    
+                
+                print(f"model_pred requires_grad: {model_pred.requires_grad}")
+                print(f"target requires_grad: {target.requires_grad}")
+                print(f"loss requires_grad: {loss.requires_grad}")
 
                 # Gather the losses across all processes for logging (if we use distributed training).
                 avg_loss = accelerator.gather(loss.repeat(args.train_batch_size)).mean()
@@ -847,10 +879,23 @@ def main():
                     args.pretrained_model_name_or_path,
                     unet=accelerator.unwrap_model(unet),
                     revision=args.revision,
-                    torch_dtype=weight_dtype,
+                    torch_dtype=weight_dtype
                 )
                 pipeline = pipeline.to(accelerator.device)
                 pipeline.set_progress_bar_config(disable=True)
+
+                text_time_embedding_from_dim = pipeline.unet.config.cross_attention_dim
+                addition_embed_type_num_heads = pipeline.unet.config.addition_embed_type_num_heads
+                time_embed_dim = pipeline.unet.block_out_channels[0] * 4
+                cross_attention_dim = pipeline.unet.config.cross_attention_dim
+
+                pipeline.unet.add_embedding = TextTimeEmbedding(
+                    text_time_embedding_from_dim, time_embed_dim, num_heads=addition_embed_type_num_heads
+                )
+
+                pipeline.unet.add_embedding.requires_grad_(False)
+
+                pipeline.unet.config.addition_embed_type = "story"
 
                 # run inference
                 generator = torch.Generator(device=accelerator.device)

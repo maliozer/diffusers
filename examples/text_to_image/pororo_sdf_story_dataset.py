@@ -17,7 +17,8 @@ class CustomImageCaptioningDataset(datasets.GeneratorBasedBuilder):
                 {
                     "image": datasets.Image(),
                     "caption": datasets.Value("string"),
-                    "prev_text": datasets.Value("list"),
+                    "prev_text": datasets.Sequence(datasets.Value("string")),
+                    "image_name": datasets.Value("string"),
                 }
             ),
             supervised_keys=("image", "caption"),
@@ -49,4 +50,4 @@ class CustomImageCaptioningDataset(datasets.GeneratorBasedBuilder):
             with open(image_path, "rb") as img_file:
                 image = Image.open(img_file)
                 image_bytes = img_file.read
-            yield idx, {"image": {"path": image_path, "bytes": image_bytes}, "caption": caption, "prev_text": prev_text}
+            yield idx, {"image": {"path": image_path, "bytes": image_bytes}, "caption": caption, "prev_text": prev_text, "image_name":image_path}

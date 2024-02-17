@@ -373,7 +373,7 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
             self.class_embedding = nn.Linear(projection_class_embeddings_input_dim, time_embed_dim)
         else:
             self.class_embedding = None
-        self.addition_embed_type = "story"
+        self.addition_embed_type = ""
         if self.addition_embed_type in ["text", "story"]:
             if encoder_hid_dim is not None:
                 text_time_embedding_from_dim = encoder_hid_dim
