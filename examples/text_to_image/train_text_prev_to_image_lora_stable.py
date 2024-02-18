@@ -12,6 +12,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# !pip install accelerate==0.26.0 -q
+# !pip install tokenizers==0.13.3
+# !pip install transformers==4.26.1
+# !pip install git+https://github.com/maliozer/diffusers -q
+# !pip install bitsandbytes
+# !pip install peft==0.8.2 -q
+# !pip install datasets==2.17.0 -q
+
 """Fine-tuning script for Stable Diffusion for text2image with support for LoRA."""
 
 from diffusers.models.embeddings import (
@@ -626,7 +634,7 @@ def main():
         for prev_text in prev_texts:
             tokens = tokenizer(prev_text, max_length=tokenizer.model_max_length, padding="max_length", truncation=True, return_tensors="pt").input_ids
             tokenized_texts.append(tokens)
-        return tokenized_texts
+        return torch.cat(tokenized_texts)
 
     # Preprocessing the datasets.
     train_transforms = transforms.Compose(
@@ -802,7 +810,6 @@ def main():
 
                 if args.snr_gamma is None:
                     loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
-                    print("LOSS :", loss)
                 else:
                     # Compute loss-weights as per Section 3.4 of https://arxiv.org/abs/2303.09556.
                     # Since we predict the noise instead of x_0, the original formulation is slightly changed.
@@ -820,9 +827,9 @@ def main():
                     loss = loss.mean()
                     
                 
-                print(f"model_pred requires_grad: {model_pred.requires_grad}")
-                print(f"target requires_grad: {target.requires_grad}")
-                print(f"loss requires_grad: {loss.requires_grad}")
+                # print(f"model_pred requires_grad: {model_pred.requires_grad}")
+                # print(f"target requires_grad: {target.requires_grad}")
+                # print(f"loss requires_grad: {loss.requires_grad}")
 
                 # Gather the losses across all processes for logging (if we use distributed training).
                 avg_loss = accelerator.gather(loss.repeat(args.train_batch_size)).mean()
