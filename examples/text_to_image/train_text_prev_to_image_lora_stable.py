@@ -440,6 +440,20 @@ def main():
     unet = UNet2DConditionModel.from_pretrained(
         args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision
     )
+
+    unet.config.addition_embed_type = "story"
+    text_time_embedding_from_dim = unet.config.cross_attention_dim
+    addition_embed_type_num_heads = unet.config.addition_embed_type_num_heads
+    time_embed_dim = unet.block_out_channels[0] * 4
+    cross_attention_dim = unet.config.cross_attention_dim
+ 
+    pipeline.unet.add_embedding = TextTimeEmbedding(
+        text_time_embedding_from_dim, time_embed_dim, num_heads=addition_embed_type_num_heads
+    )
+
+    unet.add_embedding.requires_grad_(False)
+
+
     # freeze parameters of models to save more memory
     unet.requires_grad_(False)
     vae.requires_grad_(False)
@@ -528,14 +542,14 @@ def main():
 
         optimizer_cls = bnb.optim.AdamW8bit
     else:
-        optimizer_cls = torch.optim.AdamW
+        optimizer_cls = torch.optim.Adam
 
     optimizer = optimizer_cls(
         lora_layers.parameters(),
         lr=args.learning_rate,
-        betas=(args.adam_beta1, args.adam_beta2),
-        weight_decay=args.adam_weight_decay,
-        eps=args.adam_epsilon,
+        # betas=(args.adam_beta1, args.adam_beta2),
+        # weight_decay=args.adam_weight_decay,
+        # eps=args.adam_epsilon,
     )
 
     # Get the datasets: you can either provide your own training and evaluation files (see below)
@@ -883,19 +897,6 @@ def main():
                 )
                 pipeline = pipeline.to(accelerator.device)
                 pipeline.set_progress_bar_config(disable=True)
-
-                text_time_embedding_from_dim = pipeline.unet.config.cross_attention_dim
-                addition_embed_type_num_heads = pipeline.unet.config.addition_embed_type_num_heads
-                time_embed_dim = pipeline.unet.block_out_channels[0] * 4
-                cross_attention_dim = pipeline.unet.config.cross_attention_dim
-
-                pipeline.unet.add_embedding = TextTimeEmbedding(
-                    text_time_embedding_from_dim, time_embed_dim, num_heads=addition_embed_type_num_heads
-                )
-
-                pipeline.unet.add_embedding.requires_grad_(False)
-
-                pipeline.unet.config.addition_embed_type = "story"
 
                 # run inference
                 generator = torch.Generator(device=accelerator.device)
