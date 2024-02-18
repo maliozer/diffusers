@@ -542,14 +542,14 @@ def main():
 
         optimizer_cls = bnb.optim.AdamW8bit
     else:
-        optimizer_cls = torch.optim.Adam
+        optimizer_cls = torch.optim.AdamW
 
     optimizer = optimizer_cls(
         lora_layers.parameters(),
         lr=args.learning_rate,
-        # betas=(args.adam_beta1, args.adam_beta2),
-        # weight_decay=args.adam_weight_decay,
-        # eps=args.adam_epsilon,
+        betas=(args.adam_beta1, args.adam_beta2),
+        weight_decay=args.adam_weight_decay,
+        eps=args.adam_epsilon,
     )
 
     # Get the datasets: you can either provide your own training and evaluation files (see below)
@@ -783,9 +783,6 @@ def main():
                 encoder_hidden_states = text_encoder(batch["input_ids"])[0]
                 prev_enc_hidden_states = text_encoder(batch["prev_ids"])[0]
 
-                print("-------------------------------------------------------")
-                print(encoder_hidden_states.shape, prev_enc_hidden_states.shape)
-
 
                 # Get the target for loss depending on the prediction type
                 if args.prediction_type is not None:
@@ -798,9 +795,6 @@ def main():
                     target = noise_scheduler.get_velocity(latents, noise, timesteps)
                 else:
                     raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
-
-                print(encoder_hidden_states)
-                print(prev_enc_hidden_states)
 
                 # Predict the noise residual and compute loss
                 model_pred = unet(noisy_latents, timesteps, encoder_hidden_states, added_cond_kwargs={"prev_embeds": prev_enc_hidden_states}).sample
