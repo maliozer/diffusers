@@ -634,7 +634,7 @@ def main():
         for prev_text in prev_texts:
             tokens = tokenizer(prev_text, max_length=tokenizer.model_max_length, padding="max_length", truncation=True, return_tensors="pt").input_ids
             tokenized_texts.append(tokens)
-        return torch.cat(tokenized_texts)
+        return torch.cat(tokenized_texts).unsqueeze(0)
 
     # Preprocessing the datasets.
     train_transforms = transforms.Compose(
@@ -789,8 +789,7 @@ def main():
 
                 # Get the text embedding for conditioning
                 encoder_hidden_states = text_encoder(batch["input_ids"])[0]
-                prev_enc_hidden_states = text_encoder(batch["prev_ids"])[0]
-
+                prev_enc_hidden_states = text_encoder(batch["prev_ids"])[0].mean(dim=0, keepdim=True)
 
                 # Get the target for loss depending on the prediction type
                 if args.prediction_type is not None:
@@ -826,11 +825,10 @@ def main():
                     loss = loss.mean(dim=list(range(1, len(loss.shape)))) * mse_loss_weights
                     loss = loss.mean()
                     
-                
                 # print(f"model_pred requires_grad: {model_pred.requires_grad}")
                 # print(f"target requires_grad: {target.requires_grad}")
                 # print(f"loss requires_grad: {loss.requires_grad}")
-
+                    
                 # Gather the losses across all processes for logging (if we use distributed training).
                 avg_loss = accelerator.gather(loss.repeat(args.train_batch_size)).mean()
                 train_loss += avg_loss.item() / args.gradient_accumulation_steps
