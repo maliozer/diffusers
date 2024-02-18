@@ -454,13 +454,9 @@ def main():
     addition_embed_type_num_heads = unet.config.addition_embed_type_num_heads
     time_embed_dim = unet.block_out_channels[0] * 4
     cross_attention_dim = unet.config.cross_attention_dim
- 
-    unet.add_embedding = TextTimeEmbedding(
-        text_time_embedding_from_dim, time_embed_dim, num_heads=addition_embed_type_num_heads
-    )
 
-    unet.add_embedding.requires_grad_(False)
 
+    # unet.add_embedding.requires_grad_(False)
 
     # freeze parameters of models to save more memory
     unet.requires_grad_(False)
@@ -719,7 +715,7 @@ def main():
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
     global_step = 0
     first_epoch = 0
-
+    loaded_weights = None
     # Potentially load in the weights and states from a previous save
     if args.resume_from_checkpoint:
         if args.resume_from_checkpoint != "latest":
@@ -744,8 +740,22 @@ def main():
 
             initial_global_step = global_step
             first_epoch = global_step // num_update_steps_per_epoch
+        if args.text_time_embedding:
+            loaded_weights = torch.load(os.path.join(path, 'text_time_embedding_weights.pth'))
     else:
         initial_global_step = 0
+
+
+    unet.add_embedding = TextTimeEmbedding(
+        text_time_embedding_from_dim, time_embed_dim, num_heads=addition_embed_type_num_heads
+    )
+
+    if loaded_weights is not None:
+        unet.add_embedding.load_state_dict(loaded_weights)
+        accelerator.print(f"unet.add_embedding resuming from checkpoint {path}")
+    else:
+        accelerator.print(f"unet.add_embedding started with new waights")
+
 
     progress_bar = tqdm(
         range(0, args.max_train_steps),
@@ -874,6 +884,10 @@ def main():
                         save_path = os.path.join(args.output_dir, f"checkpoint-{global_step}")
                         accelerator.save_state(save_path)
                         logger.info(f"Saved state to {save_path}")
+                        text_time_embedding_weights = unet.add_embedding.state_dict()
+                        # Save the state dict
+                        torch.save(text_time_embedding_weights, os.path.join(save_path, 'text_time_embedding_weights.pth'))
+                        logger.info(f"text_time_embedding_weights Saved state to {save_path}")
 
             logs = {"step_loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
             progress_bar.set_postfix(**logs)
