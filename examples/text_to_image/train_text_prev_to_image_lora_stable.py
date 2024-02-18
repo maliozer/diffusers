@@ -447,7 +447,7 @@ def main():
     time_embed_dim = unet.block_out_channels[0] * 4
     cross_attention_dim = unet.config.cross_attention_dim
  
-    pipeline.unet.add_embedding = TextTimeEmbedding(
+    unet.add_embedding = TextTimeEmbedding(
         text_time_embedding_from_dim, time_embed_dim, num_heads=addition_embed_type_num_heads
     )
 
