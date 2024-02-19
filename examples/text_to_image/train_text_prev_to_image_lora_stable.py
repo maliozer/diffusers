@@ -373,6 +373,13 @@ def parse_args():
         help=("The dimension of the LoRA update matrices."),
     )
 
+    parser.add_argument(
+        "--text_time_embedding",
+        type=str,
+        default=None,
+        help="Description for the text_time_embedding argument."
+    )
+
     args = parser.parse_args()
     env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
     if env_local_rank != -1 and env_local_rank != args.local_rank:
@@ -740,8 +747,9 @@ def main():
 
             initial_global_step = global_step
             first_epoch = global_step // num_update_steps_per_epoch
-        if args.text_time_embedding:
-            loaded_weights = torch.load(os.path.join(path, 'text_time_embedding_weights.pth'))
+        if args.text_time_embedding is not None:
+            ckpt_path = os.path.join(args.output_dir, path)
+            loaded_weights = torch.load(os.path.join(ckpt_path, 'text_time_embedding_weights.pth'))
     else:
         initial_global_step = 0
 
@@ -756,6 +764,7 @@ def main():
     else:
         accelerator.print(f"unet.add_embedding started with new waights")
 
+    unet.add_embedding = unet.add_embedding.to(accelerator.device)
 
     progress_bar = tqdm(
         range(0, args.max_train_steps),
