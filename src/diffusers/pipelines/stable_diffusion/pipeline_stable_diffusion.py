@@ -731,6 +731,7 @@ class StableDiffusionPipeline(
         clip_skip: Optional[int] = None,
         callback_on_step_end: Optional[Callable[[int, int, Dict], None]] = None,
         callback_on_step_end_tensor_inputs: List[str] = ["latents"],
+        added_cond_kwargs: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         r"""
@@ -909,7 +910,7 @@ class StableDiffusionPipeline(
         extra_step_kwargs = self.prepare_extra_step_kwargs(generator, eta)
 
         # 6.1 Add image embeds for IP-Adapter
-        added_cond_kwargs = {"image_embeds": image_embeds} if ip_adapter_image is not None else None
+        # added_cond_kwargs = {"image_embeds": image_embeds} if ip_adapter_image is not None else None
 
         # 6.2 Optionally get Guidance Scale Embedding
         timestep_cond = None
