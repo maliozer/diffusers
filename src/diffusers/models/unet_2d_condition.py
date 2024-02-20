@@ -991,7 +991,7 @@ class UNet2DConditionModel(ModelMixin, ConfigMixin, UNet2DConditionLoadersMixin)
             aug_emb = self.add_embedding(encoder_hidden_states)
         elif self.config.addition_embed_type == "story" or self.addition_embed_type == "story":
             # text_emb = self.add_embedding(encoder_hidden_states)
-            story_emb = self.add_embedding(added_cond_kwargs.get("prev_embeds"))
+            story_emb = added_cond_kwargs.get("prev_embeds") #self.add_embedding(added_cond_kwargs.get("prev_embeds"))
             encoder_hidden_states = (encoder_hidden_states + story_emb) / 2
         elif self.config.addition_embed_type == "text_image":
             # Kandinsky 2.1 - style
