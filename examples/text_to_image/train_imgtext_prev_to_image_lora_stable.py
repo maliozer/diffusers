@@ -649,8 +649,8 @@ def main():
         im_path = "/content/pororo_diff_finetune_dataset2"
         for i_path in image[0]:
             if i_path == "":
-                image_embeds = torch.zeros_like(image_embeds)
-                return image_embeds
+                image_embeds = torch.zeros((1,1024), dtype=dtype)
+                return image_embeds.to(device)
             else:
                 im_read = Image.open(os.path.join(im_path, i_path))
                 image_list.append(im_read)
