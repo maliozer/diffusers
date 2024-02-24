@@ -657,16 +657,7 @@ def main():
 
         return image_embeds # , uncond_image_embeds
         
-    
-    def tokenize_prev_text(examples, is_train=True):
-        prev_column = "prev_text"
-        tokenized_texts = []
-        prev_texts = examples[prev_column]  # This should be a list of texts
-        for prev_text in prev_texts:
-            tokens = tokenizer(prev_text, max_length=tokenizer.model_max_length, padding="max_length", truncation=True, return_tensors="pt").input_ids
-            tokenized_texts.append(tokens)
-        return torch.cat(tokenized_texts).unsqueeze(0)
-
+        
     # Preprocessing the datasets.
     train_transforms = transforms.Compose(
         [
@@ -682,7 +673,7 @@ def main():
         images = [image.convert("RGB") for image in examples[image_column]]
         examples["pixel_values"] = [train_transforms(image) for image in images]
         examples["input_ids"] = tokenize_captions(examples)
-        examples["prev_ids"] = tokenize_prev_text(examples)
+
         return examples
 
     with accelerator.main_process_first():
