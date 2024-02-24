@@ -645,19 +645,27 @@ def main():
     
 
     def encode_image(image, feature_extractor, image_encoder, num_images_per_prompt=1, device="cpu"):
+        breakpoint()
         dtype = next(image_encoder.parameters()).dtype
+        image_list = []
+        for i_path in image:
+            if i_path == "":
+                image_embeds = torch.zeros_like(image_embeds)
+                return image_embeds
+            else:
+                im_read = Image.open(image)
+                image_list.append(im_read)
 
-        image = Image.open(image)
-        image = feature_extractor(image, return_tensors="pt").pixel_values
-        image = image.to(device=device, dtype=dtype)
+        image_feat = feature_extractor(image_list, return_tensors="pt").pixel_values
+        image_feat = image_feat.to(device=device, dtype=dtype)
 
-        image_embeds = image_encoder(image).image_embeds
+        image_embeds = image_encoder(image_feat).image_embeds
         image_embeds = image_embeds.repeat_interleave(num_images_per_prompt, dim=0)
         # uncond_image_embeds = torch.zeros_like(image_embeds)
 
         return image_embeds # , uncond_image_embeds
         
-        
+
     # Preprocessing the datasets.
     train_transforms = transforms.Compose(
         [
@@ -686,8 +694,8 @@ def main():
         pixel_values = torch.stack([example["pixel_values"] for example in examples])
         pixel_values = pixel_values.to(memory_format=torch.contiguous_format).float()
         input_ids = torch.stack([example["input_ids"] for example in examples])
-        prev_ids = torch.stack([example["prev_ids"] for example in examples])
-        return {"pixel_values": pixel_values, "input_ids": input_ids, "prev_ids": prev_ids}
+        prev_img = [example["prev_img"] for example in examples]
+        return {"pixel_values": pixel_values, "input_ids": input_ids, "prev_img": prev_img}
 
     # DataLoaders creation:
     train_dataloader = torch.utils.data.DataLoader(
