@@ -647,12 +647,12 @@ def main():
         dtype = next(image_encoder.parameters()).dtype
         image_list = []
         im_path = "/content/pororo_diff_finetune_dataset2"
-        for i_path in image:
+        for i_path in image[0]:
             if i_path == "":
                 image_embeds = torch.zeros_like(image_embeds)
                 return image_embeds
             else:
-                im_read = Image.open(os.path.join(im_path, image))
+                im_read = Image.open(os.path.join(im_path, i_path))
                 image_list.append(im_read)
 
         image_feat = feature_extractor(image_list, return_tensors="pt").pixel_values
@@ -788,6 +788,7 @@ def main():
         accelerator.print(f"unet.add_embedding started with new waights")
 
     unet.add_embedding = unet.add_embedding.to(accelerator.device)
+    unet.add_embedding.requires_grad_(False)
 
     progress_bar = tqdm(
         range(0, args.max_train_steps),
@@ -834,6 +835,7 @@ def main():
                 # prev_enc_hidden_states = text_encoder(batch["prev_ids"])[0].mean(dim=0, keepdim=True)
                 im_embs = encode_image(batch["prev_img"], feature_extractor, image_encoder, num_images_per_prompt=1, device=accelerator.device)
                 im_embs = im_embs.mean(dim=0, keepdim=True)
+                im_embs = im_embs.detach()
 
                 # Get the target for loss depending on the prediction type
                 if args.prediction_type is not None:
