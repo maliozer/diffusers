@@ -43,6 +43,7 @@ import os
 import random
 import shutil
 from pathlib import Path
+from PIL import Image
 
 import datasets
 import numpy as np
@@ -461,16 +462,16 @@ def main():
     image_encoder = CLIPVisionModelWithProjection.from_pretrained(
         "stabilityai/stable-diffusion-2-1-unclip", subfolder="image_encoder")
 
-
+    
 
     vae = AutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="vae", revision=args.revision)
     unet = UNet2DConditionModel.from_pretrained(
         args.pretrained_model_name_or_path, subfolder="unet", revision=args.revision
     )
 
-    unet.config.addition_embed_type = "story"
-    text_time_embedding_from_dim = unet.config.cross_attention_dim
-    addition_embed_type_num_heads = unet.config.addition_embed_type_num_heads
+    unet.config.addition_embed_type = "story_time_image"
+
+    encoder_hid_dim = image_encoder.config.projection_dim
     time_embed_dim = unet.block_out_channels[0] * 4
     cross_attention_dim = unet.config.cross_attention_dim
 
@@ -642,6 +643,21 @@ def main():
         )
         return inputs.input_ids
     
+
+    def encode_image(image, feature_extractor, image_encoder, num_images_per_prompt=1, device="cpu"):
+        dtype = next(image_encoder.parameters()).dtype
+
+        image = Image.open(image)
+        image = feature_extractor(image, return_tensors="pt").pixel_values
+        image = image.to(device=device, dtype=dtype)
+
+        image_embeds = image_encoder(image).image_embeds
+        image_embeds = image_embeds.repeat_interleave(num_images_per_prompt, dim=0)
+        # uncond_image_embeds = torch.zeros_like(image_embeds)
+
+        return image_embeds # , uncond_image_embeds
+        
+    
     def tokenize_prev_text(examples, is_train=True):
         prev_column = "prev_text"
         tokenized_texts = []
@@ -765,10 +781,7 @@ def main():
     else:
         initial_global_step = 0
 
-
-    unet.add_embedding = TextTimeEmbedding(
-        text_time_embedding_from_dim, time_embed_dim, num_heads=addition_embed_type_num_heads
-    )
+    unet.add_embedding = ImageTimeEmbedding(image_embed_dim=encoder_hid_dim, time_embed_dim=time_embed_dim)
 
     if loaded_weights is not None:
         unet.add_embedding.load_state_dict(loaded_weights)
@@ -820,7 +833,9 @@ def main():
 
                 # Get the text embedding for conditioning
                 encoder_hidden_states = text_encoder(batch["input_ids"])[0]
-                prev_enc_hidden_states = text_encoder(batch["prev_ids"])[0].mean(dim=0, keepdim=True)
+                # prev_enc_hidden_states = text_encoder(batch["prev_ids"])[0].mean(dim=0, keepdim=True)
+                im_embs = encode_image(batch["prev_img"], feature_extractor, image_encoder, num_images_per_prompt=1, device=accelerator.device)
+                im_embs = im_embs.mean(dim=0, keepdim=True)
 
                 # Get the target for loss depending on the prediction type
                 if args.prediction_type is not None:
@@ -835,7 +850,7 @@ def main():
                     raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
 
                 # Predict the noise residual and compute loss
-                model_pred = unet(noisy_latents, timesteps, encoder_hidden_states, added_cond_kwargs={"prev_embeds": prev_enc_hidden_states}).sample
+                model_pred = unet(noisy_latents, timesteps, encoder_hidden_states, added_cond_kwargs={"img_embeds": im_embs}).sample
                 
 
                 if args.snr_gamma is None:
