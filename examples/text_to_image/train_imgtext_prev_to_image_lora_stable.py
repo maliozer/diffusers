@@ -460,8 +460,7 @@ def main():
         "stabilityai/stable-diffusion-2-1-unclip", subfolder="feature_extractor")
 
     image_encoder = CLIPVisionModelWithProjection.from_pretrained(
-        "stabilityai/stable-diffusion-2-1-unclip", subfolder="image_encoder")
-
+        "stabilityai/stable-diffusion-2-1-unclip", subfolder="image_encoder").to(accelerator.device)
     
 
     vae = AutoencoderKL.from_pretrained(args.pretrained_model_name_or_path, subfolder="vae", revision=args.revision)
@@ -645,15 +644,15 @@ def main():
     
 
     def encode_image(image, feature_extractor, image_encoder, num_images_per_prompt=1, device="cpu"):
-        breakpoint()
         dtype = next(image_encoder.parameters()).dtype
         image_list = []
+        im_path = "/content/pororo_diff_finetune_dataset2"
         for i_path in image:
             if i_path == "":
                 image_embeds = torch.zeros_like(image_embeds)
                 return image_embeds
             else:
-                im_read = Image.open(image)
+                im_read = Image.open(os.path.join(im_path, image))
                 image_list.append(im_read)
 
         image_feat = feature_extractor(image_list, return_tensors="pt").pixel_values
